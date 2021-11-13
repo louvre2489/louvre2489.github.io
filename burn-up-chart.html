@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <title>バーンアップチャート</title>
+  <meta charset="UTF-8">
+  <script src="https://cdn.plot.ly/plotly-2.4.2.min.js"></script>
+  <style type="text/css">
+    code {
+      display: inline-block;
+      padding: 0.1em 0.25em; /* 文字周りの余白 */
+      color: #444; /* 文字色 */
+      background-color: #e7edf3; /* 背景色 */
+      border-radius: 3px; /* 角丸 */
+      border: solid 1px #d6dde4; /* 枠線 */
+    }
+  </style>
+</head>
+<body>
+  <label for="error_rate">誤差（単位：％）</label><input type="number" id="error_rate" max="100" min="0" value="50"/>
+  <p>スプリントバーンアップチャートを作成します。以下のフォーマットで作成したCSVファイルを選択してください。</p>
+  <pre>
+    <code>
+スプリント,総SP,ベロシティ  
+1,100,10
+2,110,8
+...
+    </code>
+  </pre>
+  <input type="file" name="file" id="file">
+
+  <div id="myDiv"><!-- ここにグラフを表示する --></div>
+  <script>
+    const layout = {
+      title: 'スプリントバーンアップチャート',
+      height: 800,
+      width: 1800
+    };
+
+    const file = document.getElementById('file');
+
+    function loadLocalCsv(e) {
+      // ファイル情報を取得
+      const fileData = e.target.files[0];
+      console.log(fileData); // 取得した内容の確認用
+
+      // CSVファイル以外は処理を止める
+      if(!fileData.name.match('.csv$')) {
+        alert('CSVファイルを選択してください');
+        return;
+      }
+
+      // 誤差
+      const error_rate = document.getElementById("error_rate").value / 100;
+
+      // FileReaderオブジェクトを使ってファイル読み込み
+      let reader = new FileReader();
+
+      // CSVファイルのカラムの意味
+      const col_sprint = 0;     // スプリント名
+      const col_total_sp = 1;   // 当該スプリント時点での総SP。未実施のスプリントは空でくる。
+      const col_velocity = 2;   // 当該スプリントのベロシティ。未実施のスプリントは空でくる。
+
+      // ファイル読み込みに成功したときの処理
+      reader.onload = function() {
+        let cols = reader.result.split('\n');
+
+        // スプリント名
+        let sprint_name = [];
+        // スプリント毎のベロシティ実績
+        let actual_velocity = [];
+        // スプリント毎の累計SP
+        let actual_sum = [];
+        // スプリント時点毎の総SP
+        let total_sp = [];
+
+        // 平均ベロシティ
+        var average_velocity = 0;
+
+        // 累計を計算するためのメモ
+        var befor_actual_sum = 0;
+
+        // １行目はヘッダ行なのでスキップする
+        for (let i = 1; i < cols.length; i++) {
+
+          let row = i - 1;
+
+          let data = cols[i].split(',');
+          if (data.length == 3) {
+            sprint_name[row] = 'sprint ' + data[col_sprint];
+
+            if (isNaN(data[col_total_sp])) {
+              alert('総SPは数値で入力してください');
+              return;
+            }
+
+            if (isNaN(data[col_velocity])) {
+              alert('ベロシティは数値で入力してください');
+              return;
+            }
+
+            // 総SP
+            if (!data[col_total_sp]) {
+              // 総SPが未設定の場合は、前スプリントと同じ値を設定する
+              total_sp[row] = total_sp[row-1];
+            } else {
+              total_sp[row] = Number(data[col_total_sp]);
+            }
+
+            // ベロシティ
+            if (data[col_velocity]) {
+              // ベロシティ設定時のみ
+              actual_velocity[row] = Number(data[col_velocity]);
+
+              // 実績ベロシティの累計を算出する
+              actual_sum[row] = befor_actual_sum + actual_velocity[row];
+              befor_actual_sum = actual_sum[row];
+
+              // 平均ベロシティを算出する
+              let summary = actual_velocity.reduce(function(prev, current, i, arr) {
+                return prev+current;
+              });
+              average_velocity = summary / actual_velocity.length;
+            }
+          }
+        }
+
+        // スプリント毎の予測SP
+        let estimate_sum = [];
+        // 誤差
+        let error_value = [];
+
+        let seppen = calcIntercept(actual_velocity);
+
+        // 予測ベロシティを算出する
+        for (let i = 0; i < sprint_name.length; i++) {
+          estimate_sum[i] = ((i + 1) * average_velocity) + seppen;
+
+          // 誤差を算出する
+          error_value[i] = estimate_sum[i] * error_rate;
+        }
+
+        let input_data = [
+           {
+            name:'実績値',
+            x: sprint_name,
+            y: actual_sum,
+            line: {
+              dash: 'solid',
+              width: 8
+            },
+            mode: 'lines',
+            type: 'scatter'
+          },
+          {
+            name:'予測値',
+            x: sprint_name,
+            y: estimate_sum,
+            error_y: {
+              type: 'data',
+              symmetric: false,
+              array: error_value,
+              arrayminus: error_value
+            },
+            line: {
+              dash: 'dot',
+              width: 2
+            },
+            mode: 'lines+markers',
+            type: 'scatter'
+          },
+          {
+            name:'総SP',
+            x: sprint_name,
+            y: total_sp,
+            line: {
+              dash: 'solid',
+              width: 2
+            },
+            mode: 'lines',
+            type: 'scatter'
+          }
+        ];
+
+        Plotly.newPlot('myDiv', input_data, layout);
+      }
+      // ファイル読み込みを実行
+      reader.readAsText(fileData);
+    }
+
+    /**
+     * 実績ベロシティから回帰直線の切片を求める
+     */
+    function calcIntercept(velocity) {
+      var sx = 0;
+      var sy = 0;
+      var sxy = 0;
+      var sxsq = 0;
+      var xmean;
+      var ymean;
+      var alpha;
+      var beta;
+      var n;
+
+      var index = 1;
+
+      velocity.forEach(function(val) {
+        sx += index;
+        sy += val;
+        sxy += index * val;
+        sxsq += Math.pow(val,2);
+
+        index++;
+      });
+
+      n = velocity.length;
+      xmean = sx/n;
+      ymean = sy/n;
+      // 傾き
+      beta  = ((n*sxy) - (sx*sy))/((n*sxsq)-(Math.pow(sx,2)));
+
+      // 切片
+      return ymean - (beta * xmean);
+    }
+
+    file.addEventListener('change', loadLocalCsv, false);
+  </script>
+</body>
+</html>
+
