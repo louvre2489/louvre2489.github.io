@@ -20,14 +20,17 @@
   <p>スプリントバーンアップチャートを作成します。以下のフォーマットで作成したCSVファイルを選択してください。</p>
   <pre>
     <code>
-スプリント,総SP,ベロシティ  
+スプリント,総SP,ベロシティ
 1,100,10
 2,110,8
 ...
     </code>
   </pre>
   <input type="file" name="file" id="file">
-
+  <br/>
+  <p><laebl for="now_sprint">現在のスプリント：</label><label id="now_sprint"></label></p>
+  <p><laebl for="now_sum">現在の到達SP：</label><label id="now_sum"></label></p>
+  <p><laebl for="average_velocity">平均ベロシティ：</label><label id="average_velocity"></label></p>
   <div id="myDiv"><!-- ここにグラフを表示する --></div>
   <script>
     const layout = {
@@ -91,10 +94,16 @@
             if (isNaN(data[col_total_sp])) {
               alert('総SPは数値で入力してください');
               return;
+            } else if (Number(data[col_total_sp]) < 0) {
+              alert('総SPは０以上で入力してください');
+              return;
             }
 
             if (isNaN(data[col_velocity])) {
               alert('ベロシティは数値で入力してください');
+              return;
+            } else if (Number(data[col_velocity]) < 0) {
+              alert('ベロシティは０以上で入力してください');
               return;
             }
 
@@ -119,7 +128,7 @@
               let summary = actual_velocity.reduce(function(prev, current, i, arr) {
                 return prev+current;
               });
-              average_velocity = summary / actual_velocity.length;
+              average_velocity = Math.round((summary / actual_velocity.length) * 10) / 10;
             }
           }
         }
@@ -129,15 +138,28 @@
         // 誤差
         let error_value = [];
 
-        let seppen = calcIntercept(actual_velocity);
+//        let seppen = calcIntercept(actual_velocity);
 
         // 予測ベロシティを算出する
         for (let i = 0; i < sprint_name.length; i++) {
-          estimate_sum[i] = ((i + 1) * average_velocity) + seppen;
+          estimate_sum[i] = ((i + 1) * average_velocity); // + seppen;
 
           // 誤差を算出する
           error_value[i] = estimate_sum[i] * error_rate;
         }
+
+        // 平均ベロシティを表示する
+        document.getElementById("average_velocity").textContent = average_velocity;
+
+        // 最新の確定値を表示する
+        // 実績が入っている最後のスプリントのインデックス
+        let actual_sprint_index = actual_sum.length - 1;
+
+        let now_sprint = sprint_name[actual_sprint_index];
+        document.getElementById("now_sprint").textContent = now_sprint;
+
+        let now_sum = actual_sum[actual_sprint_index];
+        document.getElementById("now_sum").textContent = now_sum;
 
         let input_data = [
            {
@@ -201,7 +223,7 @@
       var beta;
       var n;
 
-      var index = 1;
+      var index = 0;
 
       velocity.forEach(function(val) {
         sx += index;
