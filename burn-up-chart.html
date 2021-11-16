@@ -7,11 +7,11 @@
   <style type="text/css">
     code {
       display: inline-block;
-      padding: 0.1em 0.25em; /* 文字周りの余白 */
-      color: #444; /* 文字色 */
-      background-color: #e7edf3; /* 背景色 */
-      border-radius: 3px; /* 角丸 */
-      border: solid 1px #d6dde4; /* 枠線 */
+      padding: 0.1em 0.25em;
+      color: #444;
+      background-color: #e7edf3;
+      border-radius: 3px;
+      border: solid 1px #d6dde4;
     }
   </style>
 </head>
@@ -47,7 +47,7 @@
       console.log(fileData); // 取得した内容の確認用
 
       // CSVファイル以外は処理を止める
-      if(!fileData.name.match('.csv$')) {
+      if (!fileData.name.match('.csv$')) {
         alert('CSVファイルを選択してください');
         return;
       }
@@ -133,24 +133,6 @@
           }
         }
 
-        // スプリント毎の予測SP
-        let estimate_sum = [];
-        // 誤差
-        let error_value = [];
-
-//        let seppen = calcIntercept(actual_velocity);
-
-        // 予測ベロシティを算出する
-        for (let i = 0; i < sprint_name.length; i++) {
-          estimate_sum[i] = ((i + 1) * average_velocity); // + seppen;
-
-          // 誤差を算出する
-          error_value[i] = estimate_sum[i] * error_rate;
-        }
-
-        // 平均ベロシティを表示する
-        document.getElementById("average_velocity").textContent = average_velocity;
-
         // 最新の確定値を表示する
         // 実績が入っている最後のスプリントのインデックス
         let actual_sprint_index = actual_sum.length - 1;
@@ -161,87 +143,77 @@
         let now_sum = actual_sum[actual_sprint_index];
         document.getElementById("now_sum").textContent = now_sum;
 
-        let input_data = [
-           {
-            name:'実績値',
-            x: sprint_name,
-            y: actual_sum,
-            line: {
-              dash: 'solid',
-              width: 8
-            },
-            mode: 'lines',
-            type: 'scatter'
-          },
-          {
-            name:'予測値',
-            x: sprint_name,
-            y: estimate_sum,
-            error_y: {
-              type: 'data',
-              symmetric: false,
-              array: error_value,
-              arrayminus: error_value
-            },
-            line: {
-              dash: 'dot',
-              width: 2
-            },
-            mode: 'lines+markers',
-            type: 'scatter'
-          },
-          {
-            name:'総SP',
-            x: sprint_name,
-            y: total_sp,
-            line: {
-              dash: 'solid',
-              width: 2
-            },
-            mode: 'lines',
-            type: 'scatter'
-          }
-        ];
+        // スプリント毎の予測SP
+        let estimate_sum = [];
+        // 誤差
+        let error_value = [];
 
+        // 予測ベロシティを算出する
+        for (let i = 0; i < sprint_name.length; i++) {
+          estimate_sum[i] = ((i + 1) * average_velocity);
+
+          // 誤差を算出する
+          if ((estimate_sum[i] - now_sum) < 0) {
+            // 完了済のスプリントには誤差を加味しない
+            error_value[i] = 0;
+          } else {
+            error_value[i] = (estimate_sum[i] - now_sum) * error_rate;
+          }
+        }
+
+        // 平均ベロシティを表示する
+        document.getElementById("average_velocity").textContent = average_velocity;
+
+
+        let input_data = createPlotData(sprint_name, actual_sum, estimate_sum, total_sp, error_value);
         Plotly.newPlot('myDiv', input_data, layout);
       }
       // ファイル読み込みを実行
       reader.readAsText(fileData);
     }
 
-    /**
-     * 実績ベロシティから回帰直線の切片を求める
-     */
-    function calcIntercept(velocity) {
-      var sx = 0;
-      var sy = 0;
-      var sxy = 0;
-      var sxsq = 0;
-      var xmean;
-      var ymean;
-      var alpha;
-      var beta;
-      var n;
-
-      var index = 0;
-
-      velocity.forEach(function(val) {
-        sx += index;
-        sy += val;
-        sxy += index * val;
-        sxsq += Math.pow(val,2);
-
-        index++;
-      });
-
-      n = velocity.length;
-      xmean = sx/n;
-      ymean = sy/n;
-      // 傾き
-      beta  = ((n*sxy) - (sx*sy))/((n*sxsq)-(Math.pow(sx,2)));
-
-      // 切片
-      return ymean - (beta * xmean);
+    function createPlotData(sprint_name, actual_sum, estimate_sum, total_sp, error_value) {
+      return [
+         {
+          name:'実績値',
+          x: sprint_name,
+          y: actual_sum,
+          line: {
+            dash: 'solid',
+            width: 8
+          },
+          mode: 'lines',
+          type: 'scatter'
+        },
+        {
+          name:'予測値',
+          x: sprint_name,
+          y: estimate_sum,
+          error_y: {
+            type: 'data',
+            symmetric: false,
+            array: error_value,
+            arrayminus: error_value
+          },
+          line: {
+            dash: 'dot',
+            width: 2
+          },
+          mode: 'lines+markers',
+          type: 'scatter'
+        },
+        {
+          name:'総SP',
+          x: sprint_name,
+          y: total_sp,
+          line: {
+            dash: 'solid',
+            width: 2
+          },
+          mode: 'lines',
+          type: 'scatter'
+        }
+      ];
     }
 
     file.addEventListener('change', loadLocalCsv, false);
