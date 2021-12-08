@@ -44,7 +44,8 @@
     function loadLocalCsv(e) {
       // ファイル情報を取得
       const fileData = e.target.files[0];
-      console.log(fileData); // 取得した内容の確認用
+      // 取得した内容の確認用
+      console.log(fileData);
 
       // CSVファイル以外は処理を止める
       if (!fileData.name.match('.csv$')) {
@@ -53,19 +54,19 @@
       }
 
       // 誤差
+      // 未入力時は0%（誤差は考慮しない）扱いとする
       const error_rate = document.getElementById("error_rate").value / 100;
 
       // FileReaderオブジェクトを使ってファイル読み込み
       let reader = new FileReader();
 
-      // CSVファイルのカラムの意味
-      const col_sprint = 0;     // スプリント名
-      const col_total_sp = 1;   // 当該スプリント時点での総SP。未実施のスプリントは空でくる。
-      const col_velocity = 2;   // 当該スプリントのベロシティ。未実施のスプリントは空でくる。
-
       // ファイル読み込みに成功したときの処理
       reader.onload = function() {
-        let cols = reader.result.split('\n');
+
+        // CSVファイルのカラムの意味
+        const col_sprint   = 0;         // スプリント名
+        const col_total_sp = 1;         // 当該スプリント時点での総SP。未実施のスプリントは空でくる。
+        const col_velocity = 2;         // 当該スプリントのベロシティ。未実施のスプリントは空でくる。
 
         // スプリント名
         let sprint_name = [];
@@ -82,12 +83,15 @@
         // 累計を計算するためのメモ
         var befor_actual_sum = 0;
 
+        let cols = reader.result.split('\n');
+
         // １行目はヘッダ行なのでスキップする
         for (let i = 1; i < cols.length; i++) {
 
           let row = i - 1;
 
           let data = cols[i].split(',');
+
           if (data.length == 3) {
             sprint_name[row] = 'sprint ' + data[col_sprint];
 
@@ -126,7 +130,7 @@
 
               // 平均ベロシティを算出する
               let summary = actual_velocity.reduce(function(prev, current, i, arr) {
-                return prev+current;
+                return prev + current;
               });
               average_velocity = Math.round((summary / actual_velocity.length) * 10) / 10;
             }
@@ -163,7 +167,6 @@
 
         // 平均ベロシティを表示する
         document.getElementById("average_velocity").textContent = average_velocity;
-
 
         let input_data = createPlotData(sprint_name, actual_sum, estimate_sum, total_sp, error_value);
         Plotly.newPlot('myDiv', input_data, layout);
